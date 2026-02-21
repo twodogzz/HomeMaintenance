@@ -1,0 +1,12 @@
+Home Maintenance App
+Project Plan
+Combine the existing functions of the Pool Mainetnance workbook and Rainfall Logger into one windows executable app.
+1. Pool Maintenance Excel Workbook "Swimming_Pool_Manager.xlsm" Folder E:\OneDrive\Home maintenance\Pool Maintenance
+2. Rainfall Logger - Lawn watering windows app rain_app.exe - Python rain_app.py Folder E:\SoftwareProjects\GithubRepos\RainFall
+
+Method
+Use Rainfall Logger (python 3.14) as the base.
+Develop each function into a tabbed or menu feature at the top of the window.
+
+Review the excel vba modules and design the functions to do a similar or identical functions.
+Review the Rainfall Logger (python 3.14) and integrate it into the new User interface.

@@ -1,0 +1,133 @@
+Attribute VB_Name = "Module1"
+Option Explicit
+
+Sub FormatPoolTestResults()
+    On Error GoTo CleanUp
+    Application.ScreenUpdating = False
+
+    Dim wsResults As Worksheet
+    Dim wsRanges As Worksheet
+    Dim tbl As ListObject
+    Dim dataRange As Range
+    Dim cell As Range
+    Dim lowRange As Double
+    Dim highRange As Double
+    Dim rangeAcceptableLow As Double
+    Dim rangeAcceptableHigh As Double
+    Dim factorWarn As Double
+    Dim col As Integer
+    Dim itemName As String
+    Dim rng As Range
+
+    Set wsResults = ThisWorkbook.Sheets("Pool Test Log")
+    Set wsRanges = ThisWorkbook.Sheets("Desired Ranges")
+    Set tbl = wsResults.ListObjects("Pool_Test_log")
+
+    ' Loop through columns in Table1
+    For col = 2 To tbl.ListColumns.Count + 1
+        Set dataRange = tbl.ListColumns(col - 1).DataBodyRange
+
+        itemName = tbl.HeaderRowRange.Cells(1, col - 1).Value
+        Set rng = wsRanges.ListObjects("Desired_Ranges").ListColumns(1).DataBodyRange.Find(What:=itemName, LookIn:=xlValues, LookAt:=xlWhole)
+
+        If Not rng Is Nothing Then
+            lowRange = rng.Offset(0, 1).Value
+            highRange = rng.Offset(0, 2).Value
+
+            factorWarn = rng.Offset(0, 3).Value
+            rangeAcceptableLow = lowRange - (factorWarn * lowRange)
+            rangeAcceptableHigh = highRange + (factorWarn * highRange)
+
+            For Each cell In dataRange
+                If IsNumeric(cell.Value) Then
+                    cell.Interior.ThemeColor = xlThemeColorDark1
+                    cell.Interior.TintAndShade = 0
+
+                    Select Case True
+                        Case cell.Value >= lowRange And cell.Value <= highRange
+                            cell.Interior.ThemeColor = xlThemeColorAccent3
+                            cell.Interior.TintAndShade = 0
+
+                        Case cell.Value > highRange And cell.Value <= rangeAcceptableHigh
+                            cell.Interior.ThemeColor = xlThemeColorAccent2
+                            cell.Interior.TintAndShade = 0.6
+
+                        Case cell.Value > rangeAcceptableHigh
+                            cell.Interior.ThemeColor = xlThemeColorAccent2
+                            cell.Interior.TintAndShade = 0
+
+                        Case cell.Value < lowRange And cell.Value >= rangeAcceptableLow
+                            cell.Interior.ThemeColor = xlThemeColorAccent4
+                            cell.Interior.TintAndShade = 0.6
+
+                        Case cell.Value < rangeAcceptableLow
+                            cell.Interior.ThemeColor = xlThemeColorAccent4
+                            cell.Interior.TintAndShade = 0
+                    End Select
+                End If
+            Next cell
+        End If
+    Next col
+
+    ' === Add Next Planned Test Date (First Tuesday on/after +1 month) ===
+    Dim dateCol As ListColumn
+    Dim nextCol As ListColumn
+    Dim r As ListRow
+    Dim testDate As Variant
+    Dim baseDate As Date
+    Dim nextDate As Date
+
+    Set dateCol = tbl.ListColumns("Date")
+    Set nextCol = tbl.ListColumns("Next Planned Test Date")
+
+    For Each r In tbl.ListRows
+        testDate = r.Range.Cells(1, dateCol.Index).Value
+
+        If IsDate(testDate) Then
+            ' One month from test date
+            baseDate = DateAdd("m", 1, CDate(testDate))
+            nextDate = baseDate
+
+            ' Move forward to the first Tuesday (vbTuesday = 3)
+            Do While Weekday(nextDate, vbMonday) <> 2   ' Monday=1, Tuesday=2
+                nextDate = nextDate + 1
+            Loop
+
+            ' Format: "Tue 03 Feb '26"
+            r.Range.Cells(1, nextCol.Index).Value = Format(nextDate, "ddd dd mmm 'yy")
+        Else
+            r.Range.Cells(1, nextCol.Index).Value = ""
+        End If
+    Next r
+
+CleanUp:
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    Application.Calculation = xlCalculationAutomatic
+
+    If Err.Number <> 0 Then
+        MsgBox "Error " & Err.Number & ": " & Err.Description, vbExclamation, "Macro Error"
+    End If
+End Sub
+
+Function GetUnitForItem(itemName As String) As String
+
+    Dim tbl As ListObject
+    Dim rng As Range
+
+    Set tbl = ThisWorkbook.Worksheets("Inventory").ListObjects("Inventory")
+
+    Set rng = tbl.ListColumns("Item").DataBodyRange.Find( _
+                What:=itemName, _
+                LookAt:=xlWhole, _
+                MatchCase:=False)
+
+    If Not rng Is Nothing Then
+        GetUnitForItem = rng.Offset(0, 3).Value   ' Unit column
+    Else
+        GetUnitForItem = ""
+    End If
+
+End Function
+
+
