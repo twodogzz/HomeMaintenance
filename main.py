@@ -1,10 +1,10 @@
 import tkinter as tk
 from tkinter import ttk
 
-from rain_app import RainApp
-from pool_tests_tab import PoolTestsTab
-from pool_test_db import PoolTestDB
-from desired_ranges import DesiredRanges
+from modules.rainfall.rainfall_tab import RainApp
+from modules.pool.pool_tab import PoolTestsTab
+from modules.pool.pool_test_db import PoolTestDB
+from modules.pool.desired_ranges import DesiredRanges
 
 
 class HomeMaintenanceApp(tk.Tk):
