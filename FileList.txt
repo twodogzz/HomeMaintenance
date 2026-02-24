@@ -1,0 +1,36 @@
+﻿Files found:
+
+.github	2026-02-24
+.vscode	2026-02-19
+Documentation	2026-02-24
+Excel VBA	2026-02-19
+SQLite	2026-02-19
+__pycache__	2026-02-20
+.gitignore	2026-02-21
+classification_module.py	2026-02-19
+create_pool_tests_table.py	2026-02-19
+desired_ranges.py	2026-02-19
+HomeMaintenanceApp.py	2026-02-19
+home_maintenance.db	2026-02-19
+init_db.sql	2026-02-19
+insert_ranges.py	2026-02-19
+LICENSE	2026-02-21
+maintenance.ico	2026-02-19
+migration_pool_tests.py	2026-02-19
+migration_rainfall.py	2026-02-19
+next_test_date.py	2026-02-19
+pool_test.py	2026-02-19
+pool_tests_tab.py	2026-02-20
+pool_test_db.py	2026-02-19
+rain.ico	2026-02-18
+rainfall_db.py	2026-02-19
+rain_app.py	2026-02-19
+rain_data.csv	2026-02-19
+README.md	2026-02-21
+settings.json	2026-02-19
+settings_db.py	2026-02-19
+sqlite3DbCreate.ps1	2026-02-19
+sqlite3DbCreate.py	2026-02-19
+sqlTestTable.py	2026-02-19
+test_ranges_loader.py	2026-02-19
+test_update_pool_test_db.py	2026-02-19
