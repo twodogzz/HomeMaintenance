@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional, Dict
 
-from next_test_date import next_planned_test_date
-from classification_module import classify_value
+from .next_test_date import next_planned_test_date
+from modules.pool.classification_module import classify_value
 
 
 @dataclass
@@ -23,7 +23,8 @@ class PoolTest:
     clarity_notes: str = ""
     actions_taken: str = ""
 
-    # --- Database ID (must come AFTER non-default fields) ---
+    # --- Database ID (must come AFTER non-default fields) ---
+
     id: Optional[int] = None
     
     # --- Derived fields ---

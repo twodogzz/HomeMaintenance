@@ -2,7 +2,7 @@ import sqlite3
 from typing import List, Optional
 from datetime import date
 
-from pool_test import PoolTest
+from .pool_test import PoolTest
 
 
 class PoolTestDB:

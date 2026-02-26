@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from modules.rainfall.rainfall_tab import RainApp
+from modules.rainfall.rainfall_tab import RainFallTab
 from modules.pool.pool_tab import PoolTestsTab
 from modules.pool.pool_test_db import PoolTestDB
 from modules.pool.desired_ranges import DesiredRanges
@@ -53,7 +53,7 @@ class HomeMaintenanceApp(tk.Tk):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Rainfall")
 
-        rain_tab = RainApp(frame)
+        rain_tab = RainFallTab(frame)
         rain_tab.pack(fill="both", expand=True)
 
     # ------------------------------------------------------------

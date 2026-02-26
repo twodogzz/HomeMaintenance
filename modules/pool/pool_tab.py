@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkcalendar import DateEntry
 from datetime import date
-from pool_test import PoolTest
+from modules.pool.pool_test import PoolTest
 
 # High‑contrast text colours (Palette A)
 STATUS_COLOURS = {
@@ -119,7 +119,7 @@ class PoolTestsTab(ttk.Frame):
         self.tree.pack(side="left", fill="both", expand=True)
 
         scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscroll=scroll.set)
+        self.tree.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
 
         self.tree.bind("<<TreeviewSelect>>", self._on_select)

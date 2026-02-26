@@ -9,16 +9,19 @@ import sqlite3
 from datetime import date, datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox
-import json         # <- only needed for migration; can be removed later
+import json         # <- only needed for migration; can be removed later
+
 
 from tkcalendar import DateEntry
 
 # REMOVE: SETTINGS_FILE = "settings.json"
 
-from rainfall_db import RainfallDB          # <-- ADD THIS
-from settings_db import SettingsDB          # <-- ADD THIS
+from .rainfall_db import RainfallDB          # <-- ADD THIS
+from core.settings_db import SettingsDB          # <-- ADD THIS
 
-DATE_FMT = "%Y-%m-%d"  # storage format
+
+DATE_FMT = "%Y-%m-%d"  # storage format
+
 
 def load_settings():
     # Default settings
@@ -62,7 +65,7 @@ def save_settings(settings):
         
 # DATE_FMT = "%Y-%m-%d"  # storage format
 
-class RainApp(ttk.Frame):
+class RainFallTab(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
 
@@ -418,7 +421,7 @@ class RainApp(ttk.Frame):
             self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscroll=scrollbar.set)
+        self.tree.configure(yscrollcommand=scrollbar.set)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.tree.bind("<<TreeviewSelect>>", self._on_select_row)
@@ -808,7 +811,7 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    app = RainApp(root)
+    app = RainFallTab(root)
     app.pack(fill="both", expand=True)
 
     root.mainloop()
