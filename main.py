@@ -1,3 +1,5 @@
+import os
+import sys
 import tkinter as tk
 from tkinter import ttk
 
@@ -5,6 +7,16 @@ from modules.rainfall.rainfall_tab import RainFallTab
 from modules.pool.pool_tab import PoolTestsTab
 from modules.pool.pool_test_db import PoolTestDB
 from modules.pool.desired_ranges import DesiredRanges
+
+
+def _base_dir() -> str:
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def resource_path(name: str) -> str:
+    return os.path.join(_base_dir(), name)
 
 
 class HomeMaintenanceApp(tk.Tk):
@@ -19,14 +31,14 @@ class HomeMaintenanceApp(tk.Tk):
 
         # Set main app icon
         try:
-            self.iconbitmap("maintenance.ico")
+            self.iconbitmap(resource_path("maintenance.ico"))
         except Exception:
             pass
 
         # ------------------------------------------------------------
         # Shared database path
         # ------------------------------------------------------------
-        self.db_path = "home_maintenance.db"
+        self.db_path = resource_path("home_maintenance.db")
 
         # ------------------------------------------------------------
         # Shared resources
