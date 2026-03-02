@@ -4,6 +4,10 @@
 #(Option 1 moisture model, same UI, same dashboard).
 #---------------------------------------------------------------------
 
+import os
+from pathlib import Path
+import sys
+
 from datetime import date, datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -18,6 +22,19 @@ from core.settings_db import SettingsDB
 DATE_FMT = "%Y-%m-%d"  # storage format
 
 
+def _base_dir() -> str:
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return str(Path(__file__).resolve().parents[2])
+
+
+def resource_path(name: str) -> str:
+    return os.path.join(_base_dir(), name)
+
+
+DB_PATH = resource_path("home_maintenance.db")
+
+
 def load_settings():
     # Default settings
     defaults = {
@@ -25,7 +42,7 @@ def load_settings():
         "period_days": 7,
     }
 
-    db = SettingsDB("home_maintenance.db")
+    db = SettingsDB(DB_PATH)
     settings = {}
 
     # Load existing values or seed defaults
@@ -53,7 +70,7 @@ def load_settings():
 
 
 def save_settings(settings):
-    db = SettingsDB("home_maintenance.db")
+    db = SettingsDB(DB_PATH)
     for key, value in settings.items():
         db.set(key, value)
 
@@ -65,7 +82,7 @@ class RainFallTab(ttk.Frame):
         self.settings = load_settings()
 
         # SQLite DB for rainfall
-        self.db = RainfallDB("home_maintenance.db")
+        self.db = RainfallDB(DB_PATH)
 
         self.records = []  # list of dicts (kept for compatibility with existing logic)
 
@@ -735,7 +752,7 @@ if __name__ == "__main__":
     root.title("Rainfall Logger")
     root.geometry("900x600")
     try:
-        root.iconbitmap("rain.ico")
+        root.iconbitmap(resource_path("rain.ico"))
     except Exception:
         pass
 
@@ -743,3 +760,4 @@ if __name__ == "__main__":
     app.pack(fill="both", expand=True)
 
     root.mainloop()
+
