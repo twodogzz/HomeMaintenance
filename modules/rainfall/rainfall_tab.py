@@ -1,23 +1,18 @@
 #---------------------------------------------------------------------
 # RAIN LOGGER
-# SQLite‑backed while preserving all existing behaviour
+# SQLite-backed while preserving all existing behaviour
 #(Option 1 moisture model, same UI, same dashboard).
 #---------------------------------------------------------------------
-import os
-import sqlite3
 
 from datetime import date, datetime, timedelta
 import tkinter as tk
 from tkinter import ttk, messagebox
-import json         # <- only needed for migration; can be removed later
 
 
 from tkcalendar import DateEntry
 
-# REMOVE: SETTINGS_FILE = "settings.json"
-
-from .rainfall_db import RainfallDB          # <-- ADD THIS
-from core.settings_db import SettingsDB          # <-- ADD THIS
+from .rainfall_db import RainfallDB, RainfallRecord
+from core.settings_db import SettingsDB
 
 
 DATE_FMT = "%Y-%m-%d"  # storage format
@@ -26,7 +21,6 @@ DATE_FMT = "%Y-%m-%d"  # storage format
 def load_settings():
     # Default settings
     defaults = {
-        "data_file": "rain_data.csv",   # kept for compatibility, not used by DB
         "threshold_mm": 10.0,
         "period_days": 7,
     }
@@ -62,8 +56,6 @@ def save_settings(settings):
     db = SettingsDB("home_maintenance.db")
     for key, value in settings.items():
         db.set(key, value)
-        
-# DATE_FMT = "%Y-%m-%d"  # storage format
 
 class RainFallTab(ttk.Frame):
     def __init__(self, parent):
@@ -105,17 +97,10 @@ class RainFallTab(ttk.Frame):
 
     def _save_data(self):
         """
-        Persist self.records into the SQLite rainfall table.
-        For simplicity and robustness, we clear and reinsert all rows.
-        IDs are not used by the UI, so this is safe.
+        Persist self.records into SQLite using date-based upsert sync.
+        This avoids destructive full-table truncation.
         """
-        conn = sqlite3.connect("home_maintenance.db")
-        cur = conn.cursor()
-
-        # Clear existing rows
-        cur.execute("DELETE FROM rainfall")
-
-        # Reinsert from self.records
+        db_records = []
         for rec in self.records:
             d_str = rec.get("Date", "")
             try:
@@ -126,7 +111,7 @@ class RainFallTab(ttk.Frame):
             rain_str = rec.get("Rain_mm", "").strip()
             bom_str = rec.get("BOM_mm", "").strip()
             notes = rec.get("Notes", "")
-            watered = rec.get("Watered", "No")
+            watered = "Yes" if rec.get("Watered", "No") == "Yes" else "No"
             moisture_str = rec.get("Moisture", "").strip()
 
             rain_val = None
@@ -151,20 +136,18 @@ class RainFallTab(ttk.Frame):
             except ValueError:
                 moisture_val = None
 
-            cur.execute("""
-                INSERT INTO rainfall (date, rain_mm, bom_mm, notes, watered, moisture)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                d_obj.isoformat(),
-                rain_val,
-                bom_val,
-                notes,
-                watered,
-                moisture_val,
-            ))
+            db_records.append(
+                RainfallRecord(
+                    date_obj=d_obj,
+                    rain_mm=rain_val,
+                    bom_mm=bom_val,
+                    notes=notes,
+                    watered=watered,
+                    moisture=moisture_val,
+                )
+            )
 
-        conn.commit()
-        conn.close()
+        self.db.sync_records(db_records)
 
     def _sort_records(self):
         def parse_date(d):
@@ -282,6 +265,21 @@ class RainFallTab(ttk.Frame):
 
             moisture = self._compute_daily_moisture(prev_moisture, eff, watered_flag)
 
+            rec["Moisture"] = f"{moisture:.2f}"
+            prev_moisture = moisture
+
+    def _recompute_all(self):
+        """Recompute moisture for all rows from oldest to newest."""
+        if not self.records:
+            return
+
+        self._sort_records()
+        prev_moisture = 0.0
+
+        for rec in self.records:
+            eff = self._effective_mm(rec)
+            watered_flag = rec.get("Watered", "No")
+            moisture = self._compute_daily_moisture(prev_moisture, eff, watered_flag)
             rec["Moisture"] = f"{moisture:.2f}"
             prev_moisture = moisture
 
@@ -534,6 +532,7 @@ class RainFallTab(ttk.Frame):
         values = self.tree.item(item_id, "values")
         d_str = values[0]
         self.records = [r for r in self.records if r["Date"] != d_str]
+        self._recompute_all()
         self._save_data()
         self._refresh_table()
         self._update_dashboard()
@@ -552,6 +551,7 @@ class RainFallTab(ttk.Frame):
         self.entry_bom.insert(0, values[2])
         self.entry_notes.delete(0, tk.END)
         self.entry_notes.insert(0, values[5])
+        self.var_watered.set(values[6] == "Yes")
 
     # ---------- Table & dashboard refresh ----------
 
@@ -595,6 +595,8 @@ class RainFallTab(ttk.Frame):
         self.tree.yview_moveto(1.0)
 
     def _update_dashboard(self):
+        old_threshold = self.settings.get("threshold_mm", 20.0)
+        old_period_days = self.settings.get("period_days", 5)
 
         # --- Threshold (mm) ---
         try:
@@ -618,6 +620,12 @@ class RainFallTab(ttk.Frame):
         self.settings["threshold_mm"] = threshold
         self.settings["period_days"] = period_days
         save_settings(self.settings)
+
+        settings_changed = (threshold != old_threshold) or (period_days != old_period_days)
+        if settings_changed:
+            self._recompute_all()
+            self._save_data()
+            self._refresh_table()
 
         today = date.today()
         last_watering_date = None
