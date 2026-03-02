@@ -203,12 +203,11 @@ class RainFallTab(ttk.Frame):
         # Neither valid
         return None
 
-    def _compute_daily_moisture(self, prev_moisture, eff_rain):
+    def _compute_moisture_delta(self, eff_rain, watered_flag):
         """
-        Compute today's moisture based on:
-        - previous day's stored moisture
-        - today's effective rainfall
-        - decay = threshold / period_days
+        Compute moisture delta for the day using smooth net decay:
+        Delta = Effective_mm + Watering_contribution - Loss
+        where Loss = threshold / period_days
         """
         try:
             threshold = float(self.settings.get("threshold_mm", 20.0))
@@ -222,18 +221,29 @@ class RainFallTab(ttk.Frame):
         except ValueError:
             period_days = 5
 
-        decay = threshold / period_days
+        loss = threshold / period_days
+        watering_contribution = threshold if watered_flag == "Yes" else 0
+        rain_contribution = eff_rain if eff_rain is not None else 0
 
-        # Apply decay
-        moisture = max(0, prev_moisture - decay)
+        return rain_contribution + watering_contribution - loss
 
-        # Add rainfall
-        if eff_rain is not None:
-            moisture += eff_rain
+    def _compute_daily_moisture(self, prev_moisture, eff_rain, watered_flag):
+        """
+        Compute today's moisture using smooth net decay:
+        Moisture = prev_moisture + Delta (clamped to [0, threshold])
+        """
+        try:
+            threshold = float(self.settings.get("threshold_mm", 20.0))
+        except ValueError:
+            threshold = 20.0
 
-        # Cap at threshold
-        if moisture > threshold:
-            moisture = threshold
+        # Calculate delta
+        delta = self._compute_moisture_delta(eff_rain, watered_flag)
+
+        # Apply delta to previous moisture
+        moisture = prev_moisture + delta
+        moisture = max(0, moisture)  # Cannot be negative
+        moisture = min(moisture, threshold)  # Cap at threshold
 
         return moisture
 
@@ -268,106 +278,12 @@ class RainFallTab(ttk.Frame):
         for i in range(start_idx, len(self.records)):
             rec = self.records[i]
             eff = self._effective_mm(rec)
+            watered_flag = rec.get("Watered", "No")
 
-            if rec.get("Watered", "No") == "Yes":
-                moisture = float(self.settings.get("threshold_mm", 20.0))
-            else:
-                moisture = self._compute_daily_moisture(prev_moisture, eff)
+            moisture = self._compute_daily_moisture(prev_moisture, eff, watered_flag)
 
             rec["Moisture"] = f"{moisture:.2f}"
             prev_moisture = moisture
-
-        """
-        Computes soil moisture balance using decay derived from Steve's rule:
-        decay_per_day = threshold_mm / period_days.
-        """
-        try:
-            threshold = float(self.settings.get("threshold_mm", 20.0))  # T
-        except ValueError:
-            threshold = 20.0
-
-        try:
-            period_days = int(self.settings.get("period_days", 5))      # N
-            if period_days <= 0:
-                period_days = 5
-        except ValueError:
-            period_days = 5
-
-        decay = threshold / period_days                                 # T/N
-
-        # Find last watering date
-        last_watered = None
-        for rec in reversed(self.records):
-            if rec.get("Watered", "No") == "Yes":
-                try:
-                    last_watered = datetime.strptime(rec["Date"], DATE_FMT).date()
-                except ValueError:
-                    continue
-                break
-
-        if last_watered is None:
-            return None  # No watering history
-
-        # Start at full moisture
-        balance = threshold
-
-        # Build a lookup for rainfall by date
-        rain_lookup = {}
-        for r in self.records:
-            try:
-                d_obj = datetime.strptime(r["Date"], DATE_FMT).date()
-            except ValueError:
-                continue
-            eff = self._effective_mm(r)
-            if eff is None:
-                eff = 0
-            rain_lookup[d_obj] = rain_lookup.get(d_obj, 0) + eff
-
-        today = date.today()
-        day = last_watered
-
-        while day < today:
-            day += timedelta(days=1)
-
-            # Apply decay
-            balance -= decay
-            if balance < 0:
-                balance = 0
-
-            # Add rainfall if present
-            if day in rain_lookup:
-                balance += rain_lookup[day]
-                if balance > threshold:
-                    balance = threshold
-
-        return balance
-
-        balance = self._compute_moisture_balance()
-        if balance is None:
-            return "Unknown"
-        return "YES – Water Lawn" if balance <= 0 else "No watering needed"
-    
-        rain_raw = rec.get("Rain_mm", "").strip()
-        bom_raw = rec.get("BOM_mm", "").strip()
-
-        # Try Rain_mm first
-        try:
-            rain_val = float(rain_raw)
-            if rain_val >= 0:
-                return rain_val
-        except ValueError:
-            pass
-
-        # Try BOM_mm next
-        try:
-            bom_val = float(bom_raw)
-            if bom_val >= 0:
-                return bom_val
-        except ValueError:
-            pass
-
-        # Neither valid
-        return None
 
     # ---------- UI construction ----------
     def _build_ui(self):
@@ -411,7 +327,7 @@ class RainFallTab(ttk.Frame):
         table_frame = tk.Frame(self)
         table_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        columns = ("Date", "Rain_mm", "BOM_mm", "Effective_mm", "Moisture", "Notes", "Watered")
+        columns = ("Date", "Rain_mm", "BOM_mm", "Moisture_Delta", "Moisture", "Notes", "Watered")
         
         self.tree = ttk.Treeview(table_frame, columns=columns, show="headings")
         
@@ -577,11 +493,8 @@ class RainFallTab(ttk.Frame):
         except:
             eff_today = None
 
-        # 3. If watered today → reset moisture to threshold
-        if watered_flag == "Yes":
-            moisture_today = float(self.settings.get("threshold_mm", 20.0))
-        else:
-            moisture_today = self._compute_daily_moisture(prev_moisture, eff_today)
+        # 3. Compute moisture for today using smooth net decay
+        moisture_today = self._compute_daily_moisture(prev_moisture, eff_today, watered_flag)
 
         # --- Upsert record ---
         found = False
@@ -648,10 +561,12 @@ class RainFallTab(ttk.Frame):
 
         for rec in self.records:
             eff = self._effective_mm(rec)
-            eff_str = "" if eff is None else f"{eff:.1f}"
+            watered_flag = rec.get("Watered", "No")
+            delta = self._compute_moisture_delta(eff, watered_flag)
+            delta_str = f"{delta:+.1f}"
 
             # Determine tag priority
-            if rec.get("Watered", "No") == "Yes":
+            if watered_flag == "Yes":
                 tags = ("watered",)
             else:
                 if eff is None:
@@ -668,7 +583,7 @@ class RainFallTab(ttk.Frame):
                     rec["Date"],
                     rec["Rain_mm"],
                     rec["BOM_mm"],
-                    eff_str,
+                    delta_str,
                     rec.get("Moisture", ""),
                     rec["Notes"],
                     rec["Watered"],
