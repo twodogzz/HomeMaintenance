@@ -1,3 +1,6 @@
 *.log
 *.tmp
 __pycache__/
+build/
+dist/
+*.spec.bak
