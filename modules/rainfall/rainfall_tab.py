@@ -458,6 +458,9 @@ class RainFallTab(ttk.Frame):
         tk.Label(dash_frame, text="Last watering date:").grid(row=2, column=0, sticky="e")
         self.lbl_last_watering = tk.Label(dash_frame, text="-")
         self.lbl_last_watering.grid(row=2, column=1, sticky="w")
+        tk.Label(dash_frame, text="Days since last watering:").grid(row=2, column=2, sticky="e")
+        self.lbl_days_since_watering = tk.Label(dash_frame, text="-")
+        self.lbl_days_since_watering.grid(row=2, column=3, sticky="w")
 
         # Row 3 — Last rainfall date + days since
         tk.Label(dash_frame, text="Last rainfall date:").grid(row=3, column=0, sticky="e")
@@ -738,11 +741,13 @@ class RainFallTab(ttk.Frame):
         else:
             self.lbl_watering.config(text="No watering needed", bg="green", fg="white")
 
-        # Last watering date
+        # Last watering date + days since
         if last_watering_date is None:
             self.lbl_last_watering.config(text="-")
+            self.lbl_days_since_watering.config(text="-")
         else:
             self.lbl_last_watering.config(text=last_watering_date.strftime(DATE_FMT))
+            self.lbl_days_since_watering.config(text=str((today - last_watering_date).days))
 
         # Last rainfall date + days since
         if last_rain_date is None:
