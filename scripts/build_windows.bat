@@ -17,8 +17,10 @@ if /I "%~1"=="noclean" (
 
 if errorlevel 1 (
   echo Build failed.
+  pause
   exit /b 1
 )
 
 echo Build finished successfully.
+pause
 endlocal
