@@ -18,12 +18,12 @@ if (-not (Get-Command pyinstaller -ErrorAction SilentlyContinue)) {
 
 Push-Location $projectRoot
 try {
-    $args = @("--noconfirm", $specPath)
+    $pyInstallerArgs = @("--noconfirm", $specPath)
     if (-not $NoClean) {
-        $args = @("--noconfirm", "--clean", $specPath)
+        $pyInstallerArgs = @("--noconfirm", "--clean", $specPath)
     }
 
-    & pyinstaller @args
+    & pyinstaller @pyInstallerArgs
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE"
     }
