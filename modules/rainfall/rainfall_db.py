@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import List, Optional
 
 
@@ -19,7 +19,7 @@ class RainfallRecord:
         bom_mm: Optional[float],
         notes: str,
         watered: str,
-        moisture: float,
+        moisture: Optional[float],
         record_id: Optional[int] = None,
     ):
         self.id = record_id
@@ -47,12 +47,75 @@ class RainfallDB:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._ensure_schema()
 
     # ------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------
     def _connect(self):
         return sqlite3.connect(self.db_path)
+
+    def _ensure_schema(self):
+        conn = self._connect()
+        cur = conn.cursor()
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS rainfall (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                rain_mm REAL,
+                bom_mm REAL,
+                notes TEXT,
+                watered TEXT NOT NULL DEFAULT 'No',
+                moisture REAL
+            )
+        """)
+
+        # Normalize historic data before adding constraints/indexes.
+        cur.execute("""
+            UPDATE rainfall
+            SET watered = 'No'
+            WHERE watered IS NULL OR watered NOT IN ('Yes', 'No')
+        """)
+        cur.execute("""
+            DELETE FROM rainfall
+            WHERE id NOT IN (
+                SELECT MAX(id)
+                FROM rainfall
+                GROUP BY date
+            )
+        """)
+
+        cur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS ux_rainfall_date
+            ON rainfall(date)
+        """)
+
+        # Enforce key domain rules for legacy schemas that cannot add CHECK easily.
+        cur.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_rainfall_validate_insert
+            BEFORE INSERT ON rainfall
+            WHEN (NEW.rain_mm IS NOT NULL AND NEW.rain_mm < 0)
+              OR (NEW.bom_mm IS NOT NULL AND NEW.bom_mm < 0)
+              OR NEW.watered NOT IN ('Yes', 'No')
+            BEGIN
+                SELECT RAISE(ABORT, 'Invalid rainfall row');
+            END
+        """)
+
+        cur.execute("""
+            CREATE TRIGGER IF NOT EXISTS trg_rainfall_validate_update
+            BEFORE UPDATE ON rainfall
+            WHEN (NEW.rain_mm IS NOT NULL AND NEW.rain_mm < 0)
+              OR (NEW.bom_mm IS NOT NULL AND NEW.bom_mm < 0)
+              OR NEW.watered NOT IN ('Yes', 'No')
+            BEGIN
+                SELECT RAISE(ABORT, 'Invalid rainfall row');
+            END
+        """)
+
+        conn.commit()
+        conn.close()
 
     # ------------------------------------------------------------
     # Insert
@@ -66,6 +129,35 @@ class RainfallDB:
                 date, rain_mm, bom_mm, notes, watered, moisture
             )
             VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            rec.date.isoformat(),
+            rec.rain_mm,
+            rec.bom_mm,
+            rec.notes,
+            rec.watered,
+            rec.moisture,
+        ))
+
+        conn.commit()
+        new_id = cur.lastrowid
+        conn.close()
+        return new_id
+
+    def upsert_by_date(self, rec: RainfallRecord) -> int:
+        conn = self._connect()
+        cur = conn.cursor()
+
+        cur.execute("""
+            INSERT INTO rainfall (
+                date, rain_mm, bom_mm, notes, watered, moisture
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+                rain_mm=excluded.rain_mm,
+                bom_mm=excluded.bom_mm,
+                notes=excluded.notes,
+                watered=excluded.watered,
+                moisture=excluded.moisture
         """, (
             rec.date.isoformat(),
             rec.rain_mm,
@@ -113,6 +205,60 @@ class RainfallDB:
         cur.execute("DELETE FROM rainfall WHERE id=?", (rec_id,))
         conn.commit()
         conn.close()
+
+    def delete_by_date(self, d: date):
+        conn = self._connect()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM rainfall WHERE date=?", (d.isoformat(),))
+        conn.commit()
+        conn.close()
+
+    def sync_records(self, records: List[RainfallRecord]):
+        """
+        Sync DB rows to exactly match given records, without table truncation.
+        """
+        conn = self._connect()
+        cur = conn.cursor()
+        try:
+            cur.execute("BEGIN")
+
+            for rec in records:
+                cur.execute("""
+                    INSERT INTO rainfall (
+                        date, rain_mm, bom_mm, notes, watered, moisture
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(date) DO UPDATE SET
+                        rain_mm=excluded.rain_mm,
+                        bom_mm=excluded.bom_mm,
+                        notes=excluded.notes,
+                        watered=excluded.watered,
+                        moisture=excluded.moisture
+                """, (
+                    rec.date.isoformat(),
+                    rec.rain_mm,
+                    rec.bom_mm,
+                    rec.notes,
+                    rec.watered,
+                    rec.moisture,
+                ))
+
+            desired_dates = [r.date.isoformat() for r in records]
+            if desired_dates:
+                placeholders = ",".join("?" for _ in desired_dates)
+                cur.execute(
+                    f"DELETE FROM rainfall WHERE date NOT IN ({placeholders})",
+                    desired_dates,
+                )
+            else:
+                cur.execute("DELETE FROM rainfall")
+
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     # ------------------------------------------------------------
     # Load single record
