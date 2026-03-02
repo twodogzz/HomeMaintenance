@@ -104,7 +104,7 @@ All wrapper classes follow this pattern. Always use parameterized queries, never
 - Application automatically creates tables on first run
 - Ranges must be populated: `INSERT INTO desired_ranges VALUES (...)`
 - Use [init_db.sql](../init_db.sql) for schema + seed data
-- Settings can be loaded from [settings.json](../settings.json) or initialized via UI
+- Runtime settings are stored in SQLite `settings` table and initialized via UI defaults
 
 ## Project Conventions
 
@@ -141,9 +141,8 @@ value = float(self.entry_field.get()) if self.entry_field.get() else None
 Tabs receive shared resources in constructor. If changes in one tab need to reflect in another, call refresh methods or reload ranges. No pub/sub system; use direct method calls.
 
 ### External Data
-- [rain_data.csv](../rain_data.csv) - Legacy rainfall data (usually migrated to DB)
-- [settings.json](../settings.json) - Legacy settings (usually migrated to DB)
-- Migration occurs via `migration_*.py` scripts on app updates
+- Runtime source of truth is SQLite (`home_maintenance.db`)
+- Legacy CSV/JSON imports are one-off migration inputs via `migration_*.py` scripts
 
 ## Common Tasks
 
